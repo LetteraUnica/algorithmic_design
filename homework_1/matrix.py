@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from numbers import Number
 from typing import List
-from typing import Tuple
 
 
 def gauss_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
@@ -27,20 +26,21 @@ def gauss_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         rows of `B`
     '''
 
-    if A.num_of_cols != B.num_of_rows:
-        raise ValueError('The two matrices cannot be multiplied')
+    if(A.num_of_cols != B.num_of_rows):
+        raise ValueError("The two matrices can't be multiplied")
+    
+    C = [[0 for j in range(B.num_of_cols)] for i in range(A.num_of_rows)]
 
-    result = [[0 for col in range(B.num_of_cols)] for row in range(A.num_of_rows)]
-
-    for row in range(A.num_of_rows):
-        for col in range(B.num_of_cols):
-            value = 0
+    for i in range(A.num_of_rows):
+        for j in range(B.num_of_cols):
+            value = 0.
             for k in range(A.num_of_cols):
-                value += A[row][k] * B[k][col]
+                value += A[i][k] * B[k][j]
+            
+            C[i][j] = value 
+                
+    return Matrix(C, clone_matrix=False)
 
-            result[row][col] = value
-
-    return Matrix(result, clone_matrix=False)
 
 def get_matrix_quadrants(A: Matrix) -> Tuple[Matrix, Matrix, Matrix, Matrix]:
     ''' Return the matrix quadrants
@@ -56,14 +56,55 @@ def get_matrix_quadrants(A: Matrix) -> Tuple[Matrix, Matrix, Matrix, Matrix]:
         Tuple made of the quadrants of the passed matrix
     '''
 
-    A11 = A.submatrix(0,A.num_of_rows//2, 0, A.num_of_cols//2)
-    A12 = A.submatrix(0,A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
+    A11 = A.submatrix(0, A.num_of_rows//2, 0, A.num_of_cols//2)
+    A12 = A.submatrix(0, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
     A21 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, 0, A.num_of_cols//2)
     A22 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
 
     return A11, A12, A21, A22
 
-def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
+def zero_matrix(rows: int, cols: int) -> Matrix:
+    """
+    Returns a matrix filled with zeros
+
+    Parameters
+    ----------
+    rows: int
+        Number of rows
+    cols: int
+        Number of columns
+
+    Returns
+    -------
+    Matrix
+        Matrix filled with zeros
+    """
+
+    return Matrix([[0 for j in range(cols)] for i in range(rows)], clone_matrix=False)
+
+def pad_matrix(A: Matrix, rows_to_add: int, cols_to_add: int) -> Matrix:
+    """ Returns a padded matrix
+
+    Parameters
+    ----------
+    A: Matrix
+        The matrix to pad
+    rows_to_add: int
+        Number of rows to add, they will be filled with zeros
+    cols_to_add: int
+        Number of columns to add, they will be filled with zeros
+
+    Returns
+    -------
+    Matrix
+        Padded matrix
+    """
+
+    new_A = zero_matrix(A.num_of_rows + rows_to_add, A.num_of_cols + cols_to_add)
+    new_A.assign_submatrix(0, 0, A)
+    return new_A
+
+def strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
     ''' Multiply two matrices by using Strassen's algorithm
 
     Parameters
@@ -72,32 +113,39 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         The first matrix to be multiplied
     B: Matrix
         The second matrix to be multiplied
+    min_size: int
+        Size below which the standard gauss multiplication is used
 
     Returns
     -------
     Matrix
-        The matrix computed following the Strassen's algorithm procedure
+        The row-column multiplication of the matrices passed as parameters
+
+    Raises
+    ------
+    ValueError
+        If the number of columns of `A` is different from the number of
+        rows of `B`
     '''
+
+    if(A.num_of_cols != B.num_of_rows):
+        raise ValueError("The two matrices can't be multiplied")
+
+    # Base case
+    if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < min_size:
+        return gauss_matrix_mult(A, B)
+
+    # A uneven
+    padded_rows = A.num_of_rows % 2
+    A = pad_matrix(A, padded_rows, A.num_of_cols%2)
     
-    original_nrows_A = A.num_of_rows
-    original_ncols_B = B.num_of_cols
-
-    if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < 32:
-        return gauss_matrix_mult(A,B)
-
-    if A.num_of_rows%2 != 0:
-        A.append_null_row()
-
-    if A.num_of_cols%2 != 0:
-        A.append_null_column()
-        B.append_null_row()
-
-    if B.num_of_cols%2 != 0:
-        B.append_null_column()
-    
+    # B uneven
+    padded_cols = B.num_of_cols % 2
+    B = pad_matrix(B, B.num_of_rows%2, padded_cols)
+        
     A11, A12, A21, A22 = get_matrix_quadrants(A)
     B11, B12, B21, B22 = get_matrix_quadrants(B)
-
+    
     S1 = B12 - B22
     S2 = A11 + A12
     S3 = A21 + A22
@@ -108,7 +156,7 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
     S8 = B21 + B22
     S9 = A11 - A21
     S10 = B11 + B12
-
+    
     P1 = strassen_matrix_mult(A11, S1)
     P2 = strassen_matrix_mult(S2, B22)
     P3 = strassen_matrix_mult(S3, B11)
@@ -116,24 +164,22 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
     P5 = strassen_matrix_mult(S5, S6)
     P6 = strassen_matrix_mult(S7, S8)
     P7 = strassen_matrix_mult(S9, S10)
-
+    
     C11 = P5 + P4 - P2 + P6
     C12 = P1 + P2 
     C21 = P3 + P4
     C22 = P5 + P1 - P3 - P7
+    
+    C = zero_matrix(A.num_of_rows, B.num_of_cols)
+    C.assign_submatrix(0, 0, C11)
+    C.assign_submatrix(0, C.num_of_cols//2, C12)
+    C.assign_submatrix(C.num_of_rows//2, 0, C21)
+    C.assign_submatrix(C.num_of_rows//2, C.num_of_cols//2, C22)
+    
+    return C.submatrix(0, C.num_of_rows - padded_rows, 0, C.num_of_cols - padded_cols)
 
-    result = Matrix([[0 for x in range(B.num_of_cols)] for y in range(A.num_of_rows)], clone_matrix=False)
 
-    result.assign_submatrix(0,0,C11)
-    result.assign_submatrix(0,result.num_of_cols//2, C12)
-    result.assign_submatrix(result.num_of_rows//2,0,C21)
-    result.assign_submatrix(result.num_of_rows//2,result.num_of_cols//2, C22)
-
-    result = result.submatrix(0, original_nrows_A, 0, original_ncols_B)
-
-    return result
-
-def strassen_matrix_mult_memory(A: Matrix, B: Matrix) -> Matrix:
+def better_strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
     ''' Multiply two matrices by using Strassen's algorithm
 
     Parameters
@@ -142,108 +188,71 @@ def strassen_matrix_mult_memory(A: Matrix, B: Matrix) -> Matrix:
         The first matrix to be multiplied
     B: Matrix
         The second matrix to be multiplied
+    min_size: int
+        Size below which the standard gauss multiplication is used
 
     Returns
     -------
     Matrix
-        The matrix computed following the Strassen's algorithm procedure
+        The row-column multiplication of the matrices passed as parameters
+
+    Raises
+    ------
+    ValueError
+        If the number of columns of `A` is different from the number of
+        rows of `B`
     '''
 
-    original_nrows_A = A.num_of_rows
-    original_ncols_B = B.num_of_cols
+    if(A.num_of_cols != B.num_of_rows):
+        raise ValueError("The two matrices can't be multiplied")
 
-    if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < 32:
-        return gauss_matrix_mult(A,B)
+    # Base case
+    if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < min_size:
+        return gauss_matrix_mult(A, B)
 
-    if A.num_of_rows%2 != 0:
-        A.append_null_row()
-
-    if A.num_of_cols%2 != 0:
-        A.append_null_column()
-        B.append_null_row()
-
-    if B.num_of_cols%2 != 0:
-        B.append_null_column()
-
+    # A uneven
+    padded_rows = A.num_of_rows % 2
+    A = pad_matrix(A, padded_rows, A.num_of_cols%2)
+    
+    # B uneven
+    padded_cols = B.num_of_cols % 2
+    B = pad_matrix(B, B.num_of_rows%2, padded_cols)
+    
     A11, A12, A21, A22 = get_matrix_quadrants(A)
     B11, B12, B21, B22 = get_matrix_quadrants(B)
 
-    # S1 = B12 - B22
-    # S2 = A11 + A12
-    # S3 = A21 + A22
-    # S4 = B21 - B11
-    # S5 = A11 + A22
-    # S6 = B11 + B22
-    # S7 = A12 - A22
-    # S8 = B21 + B22
-    # S9 = A11 - A21
-    # S10 = B11 + B12
-
-    # P1 = strassen_matrix_mult(A11, S1)
-    # P2 = strassen_matrix_mult(S2, B22)
-    # P3 = strassen_matrix_mult(S3, B11)
-    # P4 = strassen_matrix_mult(A22, S4)
-    # P5 = strassen_matrix_mult(S5, S6)
-    # P6 = strassen_matrix_mult(S7, S8)
-    # P7 = strassen_matrix_mult(S9, S10)
-
-    # C11 = P5 + P4 - P2 + P6
-    # C12 = P1 + P2 
-    # C21 = P3 + P4
-    # C22 = P5 + P1 - P3 - P7
-
-    S1 = A11 + A22
-    S2 = B11 + B22
-    P = strassen_matrix_mult_memory(S1, S2)
+    P = better_strassen_matrix_mult(A11 + A22, B11 + B22)
     C11 = P
     C22 = P
 
-    S1 = A11 - A21
-    S2 = B11 + B12
-    P = strassen_matrix_mult_memory(S1, S2)
-    C22 = C22 - P
-
-    S1 = A12 - A22
-    S2 = B21 + B22
-    P = strassen_matrix_mult_memory(S1, S2)
-    C11 = C11 + P
-
-    S1 = A11 + A12
-    #S2 = B22.copy()
-    P = strassen_matrix_mult_memory(S1, B22.copy())
+    P = better_strassen_matrix_mult(A11 + A12, B22.copy())
     C12 = P
     C11 = C11 - P
 
-    S1 = B12 - B22
-    #S2 = A11.copy()
-    P = strassen_matrix_mult_memory(A11.copy(), S1)
+    P = better_strassen_matrix_mult(A11.copy(), B12 - B22)
     C12 = C12 + P
     C22 = C22 + P
 
-
-    S1 = A21 + A22
-    #S2 = B11.copy()
-    P = strassen_matrix_mult_memory(S1, B11.copy())
+    P = better_strassen_matrix_mult(A21 + A22, B11.copy())
     C21 = P
     C22 = C22 - P
 
-
-    S2 = B21 - B11
-    #S1 = A22.copy()
-    P = strassen_matrix_mult_memory(A22.copy(), S2)
+    P = better_strassen_matrix_mult(A22.copy(), B21 - B11)
     C11 = C11 + P
     C21 = C21 + P
 
-    result = Matrix([[0 for x in range(B.num_of_cols)] for y in range(A.num_of_rows)], clone_matrix=False)
+    C22 = C22 - better_strassen_matrix_mult(A11 - A21, B11 + B12)
 
-    result.assign_submatrix(0, 0, C11)
-    result.assign_submatrix(0, result.num_of_cols//2, C12)
-    result.assign_submatrix(result.num_of_rows//2, 0, C21)
-    result.assign_submatrix(result.num_of_rows//2, result.num_of_cols//2, C22)
+    C11 = C11 + better_strassen_matrix_mult(A12 - A22, B21 + B22)
 
-    result = result.submatrix(0, original_nrows_A, 0, original_ncols_B)
-
-    return result
+    C = zero_matrix(A.num_of_rows, B.num_of_cols)
+    C.assign_submatrix(0, 0, C11)
+    C.assign_submatrix(0, C.num_of_cols//2, C12)
+    C.assign_submatrix(C.num_of_rows//2, 0, C21)
+    C.assign_submatrix(C.num_of_rows//2, C.num_of_cols//2, C22)
+    
+    C = C.submatrix(0, C.num_of_rows - padded_rows, 0, C.num_of_cols - padded_cols)
+    return C
 
 class Matrix(object):
     ''' A simple naive matrix class
@@ -268,7 +277,7 @@ class Matrix(object):
     def __init__(self, A: List[List[Number]], clone_matrix: bool = True):
         num_of_cols = None
 
-        for _, row in enumerate(A):
+        for i, row in enumerate(A):
             if num_of_cols is not None:
                 if num_of_cols != len(row):
                     raise ValueError('This is not a matrix')
@@ -290,18 +299,6 @@ class Matrix(object):
             return 0
 
         return len(self._A[0])
-    
-    @property
-    def max(self):
-        ''' Return larger element in the matrix
-
-        Returns
-        -------
-        Number
-            The larger element in the matrix
-        '''
-       
-        return max(max(self._A))
 
     def copy(self):
         A = [[value for value in row] for row in self._A]
@@ -500,7 +497,8 @@ class Matrix(object):
         Matrix
             A submatrix of this matrix
         '''
-        A = [row[from_col:from_col+num_of_cols] for row in self._A[from_row:from_row+num_of_rows]]
+        A = [row[from_col:from_col+num_of_cols]
+             for row in self._A[from_row:from_row+num_of_rows]]
 
         return Matrix(A, clone_matrix=False)
 
@@ -509,19 +507,6 @@ class Matrix(object):
             self_row = self[y + from_row]
             for x, value in enumerate(row):
                 self_row[x + from_col] = value
-
-    def append_null_row(self):
-        ''' append new row full of zeros to the matrix
-        '''
-
-        self._A.append([0 for x in range(self.num_of_cols)])
-
-    def append_null_column(self):
-        ''' append new column full of zeros to the matrix
-        '''
-        
-        for row in self._A:
-            row.append(0)
 
     def __repr__(self):
         return '\n'.join('{}'.format(row) for row in self._A)
@@ -541,37 +526,56 @@ class IdentityMatrix(Matrix):
 
         super().__init__(A)
 
-#__________________________________
-#__________EXECUTION TIME__________
-#__________________________________
 
-if __name__ == '__main__':
+if(__name__=="main"):
 
     from random import random
-    from random import seed
+    import time
+    from IPython.display import clear_output
+    import pylab as pl
 
-    from sys import stdout
+    # Sizes to consider
+    all_n = [2**i for i in range(1, 10)]
+    time_gauss = []
+    time_strassen_naive = []
+    time_strassen_better = []
 
-    from timeit import timeit
+    f = open("matrix-times.txt", "w")
+    f.write("# Gauss_matmul/strassen_matmul/memory_efficient_strassen_matmul")
+    for n in all_n:
+        # Generates two uniform random matrix
+        A = Matrix([[random() for j in range(n)] for i in range(n)], clone_matrix=False)
+        B = Matrix([[random() for j in range(n)] for i in range(n)], clone_matrix=False)
+        
+        # Time of the gauss matmul
+        start = time.time()
+        gauss_matrix_mult(A, B)
+        time_gauss.append(time.time() - start)
+        f.write(f"{time_gauss[-1]} ")
+        
+        # Time of the naive strassen matmul
+        start = time.time()
+        strassen_matrix_mult(A, B)
+        time_strassen_naive.append(time.time() - start)
+        f.write(f"{time_strassen_naive[-1]} ")
+        
+        # Time of the better strassen matmul
+        start = time.time()
+        better_strassen_matrix_mult(A, B)
+        time_strassen_better.append(time.time() - start)
+        f.write(f"{time_strassen_better[-1]}\n")
+        
+        # To track progress
+        print("done:", n)
 
-    seed(0)
-
-    f = open("original.txt","w")
-
-    for i in range(12):
-        size = 2**i
-        stdout.write(f'{size}')
-        f.write(f'{size}')
-        A = Matrix([[random() for x in range(size)] for y in range(size)])
-        B = Matrix([[random() for x in range(size)] for y in range(size)])
-
-        for funct in ['gauss_matrix_mult', 'strassen_matrix_mult']:
-            T = timeit(f'{funct}(A,B)', globals=locals(), number=1) 
-            stdout.write('\t{:.3f}'.format(T)) 
-            stdout.flush() 
-            f.write('\t{:.3f}'.format(T))
-
-        stdout.write('\n')
-        f.write('\n')
-    
     f.close()
+
+    # Plot the curves
+    pl.loglog(all_n, time_gauss, label="Gauss matmul")
+    pl.loglog(all_n, time_strassen_naive, label="Strassen matmul")
+    pl.loglog(all_n, time_strassen_better, label="Strassen efficient matmul")
+    pl.legend()
+    pl.ylabel("Time [s]")
+    pl.xlabel("Size of the matrix [n]")
+    pl.title("Time vs size for matrix multiplication")
+    pl.savefig("Time-comparison.png", dpi=300)
