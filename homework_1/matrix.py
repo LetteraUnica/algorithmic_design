@@ -59,7 +59,8 @@ def get_matrix_quadrants(A: Matrix) -> Tuple[Matrix, Matrix, Matrix, Matrix]:
     A11 = A.submatrix(0, A.num_of_rows//2, 0, A.num_of_cols//2)
     A12 = A.submatrix(0, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
     A21 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, 0, A.num_of_cols//2)
-    A22 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
+    A22 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, 
+                      A.num_of_cols//2, A.num_of_cols//2)
 
     return A11, A12, A21, A22
 
@@ -80,10 +81,12 @@ def zero_matrix(rows: int, cols: int) -> Matrix:
         Matrix filled with zeros
     """
 
-    return Matrix([[0 for j in range(cols)] for i in range(rows)], clone_matrix=False)
+    return Matrix([[0 for j in range(cols)] for i in range(rows)], 
+                  clone_matrix=False)
 
 def pad_matrix(A: Matrix, rows_to_add: int, cols_to_add: int) -> Matrix:
-    """ Returns a padded matrix
+    """
+    Returns a padded version of the given matrix 
 
     Parameters
     ----------
@@ -99,7 +102,11 @@ def pad_matrix(A: Matrix, rows_to_add: int, cols_to_add: int) -> Matrix:
     Matrix
         Padded matrix
     """
-
+    
+    # Safety check to avoid performing useless computations
+    if(rows_to_add == 0 and cols_to_add == 0):
+        return A
+    
     new_A = zero_matrix(A.num_of_rows + rows_to_add, A.num_of_cols + cols_to_add)
     new_A.assign_submatrix(0, 0, A)
     return new_A
@@ -180,7 +187,8 @@ def strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
 
 
 def better_strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
-    ''' Multiply two matrices by using Strassen's algorithm
+    ''' Multiply two matrices by using a memory efficient version
+        of the Strassen's algorithm 
 
     Parameters
     ----------
@@ -525,57 +533,3 @@ class IdentityMatrix(Matrix):
              for y in range(size)]
 
         super().__init__(A)
-
-
-if(__name__=="main"):
-
-    from random import random
-    import time
-    from IPython.display import clear_output
-    import pylab as pl
-
-    # Sizes to consider
-    all_n = [2**i for i in range(1, 10)]
-    time_gauss = []
-    time_strassen_naive = []
-    time_strassen_better = []
-
-    f = open("matrix-times.txt", "w")
-    f.write("# Gauss_matmul/strassen_matmul/memory_efficient_strassen_matmul")
-    for n in all_n:
-        # Generates two uniform random matrix
-        A = Matrix([[random() for j in range(n)] for i in range(n)], clone_matrix=False)
-        B = Matrix([[random() for j in range(n)] for i in range(n)], clone_matrix=False)
-        
-        # Time of the gauss matmul
-        start = time.time()
-        gauss_matrix_mult(A, B)
-        time_gauss.append(time.time() - start)
-        f.write(f"{time_gauss[-1]} ")
-        
-        # Time of the naive strassen matmul
-        start = time.time()
-        strassen_matrix_mult(A, B)
-        time_strassen_naive.append(time.time() - start)
-        f.write(f"{time_strassen_naive[-1]} ")
-        
-        # Time of the better strassen matmul
-        start = time.time()
-        better_strassen_matrix_mult(A, B)
-        time_strassen_better.append(time.time() - start)
-        f.write(f"{time_strassen_better[-1]}\n")
-        
-        # To track progress
-        print("done:", n)
-
-    f.close()
-
-    # Plot the curves
-    pl.loglog(all_n, time_gauss, label="Gauss matmul")
-    pl.loglog(all_n, time_strassen_naive, label="Strassen matmul")
-    pl.loglog(all_n, time_strassen_better, label="Strassen efficient matmul")
-    pl.legend()
-    pl.ylabel("Time [s]")
-    pl.xlabel("Size of the matrix [n]")
-    pl.title("Time vs size for matrix multiplication")
-    pl.savefig("Time-comparison.png", dpi=300)

@@ -59,7 +59,8 @@ def get_matrix_quadrants(A: Matrix) -> Tuple[Matrix, Matrix, Matrix, Matrix]:
     A11 = A.submatrix(0, A.num_of_rows//2, 0, A.num_of_cols//2)
     A12 = A.submatrix(0, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
     A21 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, 0, A.num_of_cols//2)
-    A22 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, A.num_of_cols//2, A.num_of_cols//2)
+    A22 = A.submatrix(A.num_of_rows//2, A.num_of_rows//2, 
+                      A.num_of_cols//2, A.num_of_cols//2)
 
     return A11, A12, A21, A22
 
@@ -80,10 +81,12 @@ def zero_matrix(rows: int, cols: int) -> Matrix:
         Matrix filled with zeros
     """
 
-    return Matrix([[0 for j in range(cols)] for i in range(rows)], clone_matrix=False)
+    return Matrix([[0 for j in range(cols)] for i in range(rows)], 
+                  clone_matrix=False)
 
 def pad_matrix(A: Matrix, rows_to_add: int, cols_to_add: int) -> Matrix:
-    """ Returns a padded matrix
+    """
+    Returns a padded version of the given matrix 
 
     Parameters
     ----------
@@ -99,11 +102,16 @@ def pad_matrix(A: Matrix, rows_to_add: int, cols_to_add: int) -> Matrix:
     Matrix
         Padded matrix
     """
-
+    
+    # Safety check to avoid performing useless computations
+    if(rows_to_add == 0 and cols_to_add == 0):
+        return A
+    
     new_A = zero_matrix(A.num_of_rows + rows_to_add, A.num_of_cols + cols_to_add)
-    return new_A.assign_submatrix(0, 0, A)
+    new_A.assign_submatrix(0, 0, A)
+    return new_A
 
-def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
+def strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
     ''' Multiply two matrices by using Strassen's algorithm
 
     Parameters
@@ -112,6 +120,8 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         The first matrix to be multiplied
     B: Matrix
         The second matrix to be multiplied
+    min_size: int
+        Size below which the standard gauss multiplication is used
 
     Returns
     -------
@@ -129,43 +139,20 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         raise ValueError("The two matrices can't be multiplied")
 
     # Base case
-    print("asd")
-    min_size=4
     if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < min_size:
         return gauss_matrix_mult(A, B)
 
-    # Rectangular case
-    if(A.num_of_rows != A.num_of_cols):
-        N = A.num_of_cols
-        C = zero_matrix(A.num_of_rows, B.num_of_cols)
-
-        for split_A in range(0, A.num_of_rows, N):
-            for split_B in range(0, B.num_of_cols, N):
-                temp = strassen_matrix_mult(A.submatrix(split_A, N, 0, N), B.submatrix(0, N, split_B, N))
-                C.assign_submatrix(split_A, split_B, temp)
+    # A uneven
+    padded_rows = A.num_of_rows % 2
+    A = pad_matrix(A, padded_rows, A.num_of_cols%2)
+    
+    # B uneven
+    padded_cols = B.num_of_cols % 2
+    B = pad_matrix(B, B.num_of_rows%2, padded_cols)
         
-        # In case A.num_of_rows % N != 0 or B.num_of_cols % N != 0
-        # I pad the rest of the matrix to square it
-        rows_padded = A.num_of_rows - split_A
-        cols_padded = B.num_of_cols - split_B
-        A_padded = pad_matrix(A.submatrix(split_A, rows_padded, 0, N), N - rows_padded, 0)
-        B_padded = pad_matrix(B.submatrix(0, N, split_B, cols_padded), N - cols_padded, 0)
-        temp = strassen_matrix_mult(A_padded, B_padded)
-
-        C.assign_submatrix(split_A, split_B, temp.submatrix(0, rows_padded, 0, cols_padded))
-
-        return C
-
-
-    # Uneven case, at this point the matrix is square
-    if(A.num_of_cols % 2 != 0):
-        A = pad_matrix(A, 1, 1)
-        B = pad_matrix(B, 1, 1)
-        padded = 1
-
     A11, A12, A21, A22 = get_matrix_quadrants(A)
     B11, B12, B21, B22 = get_matrix_quadrants(B)
-
+    
     S1 = B12 - B22
     S2 = A11 + A12
     S3 = A21 + A22
@@ -189,19 +176,19 @@ def strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
     C12 = P1 + P2 
     C21 = P3 + P4
     C22 = P5 + P1 - P3 - P7
-
-    C = [[0 for j in range(B.num_of_cols)] for i in range(A.num_of_rows)]
-    C = Matrix(C, clone_matrix=False)
+    
+    C = zero_matrix(A.num_of_rows, B.num_of_cols)
     C.assign_submatrix(0, 0, C11)
     C.assign_submatrix(0, C.num_of_cols//2, C12)
     C.assign_submatrix(C.num_of_rows//2, 0, C21)
     C.assign_submatrix(C.num_of_rows//2, C.num_of_cols//2, C22)
     
-    return C
+    return C.submatrix(0, C.num_of_rows - padded_rows, 0, C.num_of_cols - padded_cols)
 
 
-def better_strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
-    ''' Multiply two matrices by using Strassen's algorithm
+def better_strassen_matrix_mult(A: Matrix, B: Matrix, min_size: int = 64) -> Matrix:
+    ''' Multiply two matrices by using a memory efficient version
+        of the Strassen's algorithm 
 
     Parameters
     ----------
@@ -209,6 +196,8 @@ def better_strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         The first matrix to be multiplied
     B: Matrix
         The second matrix to be multiplied
+    min_size: int
+        Size below which the standard gauss multiplication is used
 
     Returns
     -------
@@ -226,51 +215,43 @@ def better_strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
         raise ValueError("The two matrices can't be multiplied")
 
     # Base case
-    min_size=32
     if max(A.num_of_rows, B.num_of_cols, A.num_of_cols) < min_size:
         return gauss_matrix_mult(A, B)
 
-    # Rectangular case
-    if(A.num_of_rows != A.num_of_cols):
-        N = A.num_of_cols
-        C = zero_matrix(A.num_of_rows, B.num_of_cols)
-
-        for split_A in range(0, A.num_of_rows, N):
-            for split_B in range(0, B.num_of_cols, N):
-                temp = strassen_matrix_mult(A.submatrix(split_A, N, 0, N), B.submatrix(0, N, split_B, N))
-                C.assign_submatrix(split_A, split_B, temp)
-        
-        # In case A.num_of_rows % N != 0 or B.num_of_cols % N != 0
-        # I pad the rest of the matrix to square it
-        rows_padded = A.num_of_rows - split_A
-        cols_padded = B.num_of_cols - split_B
-        A_padded = pad_matrix(A.submatrix(split_A, rows_padded, 0, N), N - rows_padded, 0)
-        B_padded = pad_matrix(B.submatrix(0, N, split_B, cols_padded), N - cols_padded, 0)
-        temp = strassen_matrix_mult(A_padded, B_padded)
-
-        C.assign_submatrix(split_A, split_B, temp.submatrix(0, rows_padded, 0, cols_padded))
-
-        return C
-
-
-    # Uneven case
-    if(A.num_of_cols % A.num_of_rows != 0):
-        A = pad_matrix(A, 1, 1)
-        B = pad_matrix(B, 1, 1)
-
+    # A uneven
+    padded_rows = A.num_of_rows % 2
+    A = pad_matrix(A, padded_rows, A.num_of_cols%2)
+    
+    # B uneven
+    padded_cols = B.num_of_cols % 2
+    B = pad_matrix(B, B.num_of_rows%2, padded_cols)
+    
     A11, A12, A21, A22 = get_matrix_quadrants(A)
     B11, B12, B21, B22 = get_matrix_quadrants(B)
-    
-    P1 = strassen_matrix_mult(A11, B12 - B22)
-    P2 = strassen_matrix_mult(A11 + A12, B22)
-    P3 = strassen_matrix_mult(A21 + A22, B11)
-    P4 = strassen_matrix_mult(A22, B21 - B11)
-    P5 = strassen_matrix_mult(A11 + A22, B11 + B22)
-    
-    C11 = P5 + P4 - P2 + strassen_matrix_mult(A12 - A22, B21 + B22)
-    C12 = P1 + P2 
-    C21 = P3 + P4
-    C22 = P5 + P1 - P3 - strassen_matrix_mult(A11 - A21, B11 + B12)
+
+    P = better_strassen_matrix_mult(A11 + A22, B11 + B22)
+    C11 = P
+    C22 = P
+
+    P = better_strassen_matrix_mult(A11 + A12, B22.copy())
+    C12 = P
+    C11 = C11 - P
+
+    P = better_strassen_matrix_mult(A11.copy(), B12 - B22)
+    C12 = C12 + P
+    C22 = C22 + P
+
+    P = better_strassen_matrix_mult(A21 + A22, B11.copy())
+    C21 = P
+    C22 = C22 - P
+
+    P = better_strassen_matrix_mult(A22.copy(), B21 - B11)
+    C11 = C11 + P
+    C21 = C21 + P
+
+    C22 = C22 - better_strassen_matrix_mult(A11 - A21, B11 + B12)
+
+    C11 = C11 + better_strassen_matrix_mult(A12 - A22, B21 + B22)
 
     C = zero_matrix(A.num_of_rows, B.num_of_cols)
     C.assign_submatrix(0, 0, C11)
@@ -278,6 +259,7 @@ def better_strassen_matrix_mult(A: Matrix, B: Matrix) -> Matrix:
     C.assign_submatrix(C.num_of_rows//2, 0, C21)
     C.assign_submatrix(C.num_of_rows//2, C.num_of_cols//2, C22)
     
+    C = C.submatrix(0, C.num_of_rows - padded_rows, 0, C.num_of_cols - padded_cols)
     return C
 
 class Matrix(object):
