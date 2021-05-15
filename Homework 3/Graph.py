@@ -318,6 +318,3 @@ class Graph:
             s += f"{v.__repr__()}\n"
             
         return s
-
-G = Graph()
-G.add_edge("A", "C", 1.)
