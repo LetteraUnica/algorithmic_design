@@ -46,7 +46,8 @@ class Binary_heap:
     """
     
     def __init__(self, A: list, to_copy: bool = True,
-                 total_order: Callable = None):
+                 total_order: Callable = None,
+                 dict_key = None):
         """
         Class constructor, creates a heap from a list either in-place or
         by copying it, the ordering of the heap can be changed by passing a
@@ -79,6 +80,11 @@ class Binary_heap:
             total_order = lambda x, y: x<y
         self._order = total_order
         
+        self.needs_dict = False
+        if dict_key is not None:
+            self.needs_dict = True
+            self.dict_key = dict_key
+        
         # Build the heap
         self._build_heap()
         
@@ -95,6 +101,10 @@ class Binary_heap:
             Index of the second element to be swapped
         """
         
+        if self.needs_dict:
+            self.key_dict[self.dict_key(self.H[i])] = j
+            self.key_dict[self.dict_key(self.H[j])] = i
+            
         tmp = self.H[i]
         self.H[i] = self.H[j]
         self.H[j] = tmp
@@ -128,10 +138,18 @@ class Binary_heap:
                 keep_fixing=False
     
     
+    def _build_dict(self):
+        self.key_dict = dict((self.dict_key(self.H[i]), i) for i in range(self.size))
+    
+    
     def _build_heap(self):
         """
         Utility function used to build an heap
         """
+        
+        if self.needs_dict:
+            self._build_dict()
+            
         for i in range(self.parent(self.size), -1, -1):
             self._heapify(i)
    
@@ -245,6 +263,10 @@ class Binary_heap:
             p = self.parent(i)
     
     
+    def decrease_value(self, value, new_value):
+        new_value = deepcopy(new_value)
+        self.decrease_key(self.key_dict[self.dict_key(value)], new_value)
+        
     def insert(self, value: T):
         """
         Inserts a new value in the heap
@@ -257,6 +279,8 @@ class Binary_heap:
         
         self.size += 1
         self.H.append(inf)
+        if self.needs_dict:
+            self.key_dict[self.dict_key(value)] = self.size-1
         self.decrease_key(self.size-1, value)
         
         
