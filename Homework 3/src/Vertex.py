@@ -2,7 +2,7 @@ from typing import TypeVar, Union
 from warnings import warn
 
 n = TypeVar("n")
-w = TypeVar("w", *[int, float])
+w = TypeVar("w", *[int, float, None])
 
 from .Edge import Edge, Shortcut
 
@@ -16,20 +16,27 @@ class Vertex:
     ----------
     name: n
         Name of the vertex
-    connections: dict[n, w]
+    connections: dict[n, Edge]
         Dictionary holding destination:weight pairs
     
     Methods
     -------
-    add(destination: n, weight: w)
-        Adds a connection to the Vertex, 
-        i.e. it adds a destination:weight pair to the connection dictionary
+    add_connection(connection: Union[Edge, Shortcut])
+        Adds a connection to the Vertex
         
-    remove(destination: n):
+    remove_connection(destination: n)
         Removes a connection from the vertex
-        
+
     get_connections():
-        Returns the connections dictionary   
+        Returns the connections dictionary
+    
+    has_connection(destination: n) -> bool
+        Returns true if the connection to destination exists, 
+        otherwise returns False
+    
+    get_weight(destination: n) -> w
+        Returns the weight of the connection from this vertex to destination
+        if the connection is not present returns None
     """
     
     def __init__(self, name: n, edges: "list[Edge]" = None):
@@ -48,30 +55,27 @@ class Vertex:
         """
         
         self.name = name
-        if edges is None:
-            self.connections = dict()
-        else:
+        self.connections = dict()
+        if edges is not None:
             self.connections = dict([(edge.destination, edge) for edge in edges if edge.source == name])
      
     
-    def add_connection(self, edge: Union[Edge, Shortcut]):
+    def add_connection(self, connection: Union[Edge, Shortcut]):
         """
         Adds a connection to the Vertex
         
         Parameters
         ----------
-        destination: n
-            Destination of the connection
-        weight: w
-            Weight of the connection
+        connection: Union[Edge, Shortcut]
+            Connection to add
         """
-        if edge.get_source() != self.name:
-            message = f"The edge can't be added because its source {edge.get_source()} "
+        if connection.get_source() != self.name:
+            message = f"The edge can't be added because its source {connection.get_source()} "
             message += f"is different than the vertex name {self.name}, exiting\n"
             warn(message, RuntimeWarning)
             return
 
-        self.connections[edge.get_destination()] = edge
+        self.connections[connection.get_destination()] = connection
     
     
     def remove_connection(self, destination: n):
@@ -95,6 +99,10 @@ class Vertex:
     
     
     def has_connection(self, destination: n) -> bool:
+        """
+        Returns true if the connection to destination exists, 
+        otherwise returns False
+        """
         try:
             _ = self.connections[destination]
         except KeyError:
@@ -103,7 +111,7 @@ class Vertex:
         return True
         
         
-    def get_weight(self, destination: n) -> Union[float, int, None]:
+    def get_weight(self, destination: n) -> w:
         """
         Returns the weight of the connection from this vertex to destination
         if the connection is not present returns None
@@ -125,9 +133,15 @@ class Vertex:
             return None
 
     
-    def __getitem__(self, key: n) -> Edge:
-        return self.connections[key]
-
+    def __getitem__(self, vertex_name: n) -> Union[Edge, Shortcut]:
+        """
+        Overload of the [] operator, returns the connection corresponding to
+        vertex_name if the Vertex has one, otherwise returns None
+        """
+        try:
+            return self.connections[vertex_name]
+        except KeyError:
+            return None
 
     def __repr__(self):
         """Overload of the print function"""

@@ -68,6 +68,8 @@ class Graph:
     
     
     def add_shortcuts(self):
+        """Adds all the shortcut to the graph"""
+
         # Get vertex importances
         try:
             importances = [(v.importance, v) for v in self.V()]
@@ -80,8 +82,14 @@ class Graph:
         
         for _, v in importances:
             self.add_shortcut(v)
-        
+    
+
     def add_shortcut(self, v: Vertex):
+        """Adds the shortcut from a particular Vertex v to the graph
+
+        Args:
+            v (Vertex): Vertex to add the shortcuts
+        """
         parents = self.get_parents(v)
         childs = self.get_childs(v)
         
@@ -101,11 +109,20 @@ class Graph:
                     self.add_edge_aux(shortcut)
         
     
-    def get_parents(self, vertex: Vertex):
-        return [v for v in self.V() if vertex.name in v.get_connections().keys()]
+    def get_parents(self, vertex_name: n) -> "list[Vertex]":
+        """Returns the parent of a given Vertex, takes time O(|V|) on average
+        because v.get_connections() is a dictionary
+
+        Args:
+            vertex_name (n): vertex to get the parents
+
+        Returns:
+            [list[Vertex]]: List of vertexes which are the parents of vertex_name
+        """
+        return [v for v in self.V() if vertex_name in v.get_connections()]
     
     
-    def get_childs(self, vertex: Vertex):
+    def get_childs(self, vertex_name: n) -> "list[Vertex]":
         return [self.get_vertex(v) for v in vertex.get_connections().keys()]
     
     

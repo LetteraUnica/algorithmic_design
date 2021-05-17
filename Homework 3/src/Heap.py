@@ -1,10 +1,11 @@
 from copy import deepcopy
 from collections.abc import Callable
 from typing import TypeVar
-import warnings
+from warnings import warn
 from numpy import inf
 
 T = TypeVar("T")
+K = TypeVar("K")
 
 class Binary_heap:
     """
@@ -18,6 +19,13 @@ class Binary_heap:
         Stores the length of H
     _order: Callable[[T, T], bool]
         Function used to order the heap
+    needs_dict: bool
+        Whether the heap has a dictionary of (T, index) pairs
+    key_dict: dict(K, int)
+        Dictionary of (key, index) pairs, the dictionary tells the index 
+        in the heap of a given value T
+    dict_key: Callable[[T], K]
+        Gives the key of the key_dict dictionary given a value T
     
     Methods
     -------
@@ -39,19 +47,22 @@ class Binary_heap:
         Returns the minimum key stored in the binary heap
     remove_min() -> T 
         Removes the minimum value from the binary heap and returns it
-    decrease_key(key: int, new_value: T) -> int
+    decrease_key(key: int, new_value: T)
         Decreases the value of H[index] to new_value
+    decrease_value(self, value: T, new_value: T)
+        Decreases the value to new_value
     insert(self, value: T):
         Inserts a new value into the binary heap
     """
     
     def __init__(self, A: list, to_copy: bool = True,
                  total_order: Callable = None,
-                 dict_key = None):
+                 dict_key: Callable = None):
         """
         Class constructor, creates a heap from a list either in-place or
         by copying it, the ordering of the heap can be changed by passing a
-        total_order
+        total_order, furthermore by passing a dict_key function the heap can
+        decrease it's elements without needing the respective index
         
         Parameters
         ----------
@@ -64,6 +75,8 @@ class Binary_heap:
         total_order: Callable[[T, T], bool]
             Function used to order the elements of the heap
             Default: None, which corresponds to a Min-Heap
+        dict_key: Callable[[T], K]
+            Function used to update a value without needing the index in the heap
         """
         
         # Get the heap size
@@ -139,6 +152,7 @@ class Binary_heap:
     
     
     def _build_dict(self):
+        """Utility function that builds the key_dict dictionary"""
         self.key_dict = dict((self.dict_key(self.H[i]), i) for i in range(self.size))
     
     
@@ -213,7 +227,7 @@ class Binary_heap:
         
         if self.is_empty():
             message = f"The heap is empty"
-            warnings.warn(message, category=RuntimeWarning)
+            warn(message, category=RuntimeWarning)
             return
         
         minimum = self.extract_min()
@@ -249,7 +263,7 @@ class Binary_heap:
         if self.H[key] != inf and self._order(self.H[key], new_value):
             message = f"{new_value} is smaller than the previous one, "
             message += "the function does nothing in this case"
-            warnings.warn(message, category=RuntimeWarning)
+            warn(message, category=RuntimeWarning)
             return
         
         # Otherwise update H[key] and fix the heap property by iteratively
@@ -263,11 +277,38 @@ class Binary_heap:
             p = self.parent(i)
     
     
-    def decrease_value(self, value, new_value):
-        new_value = deepcopy(new_value)
-        self.decrease_key(self.key_dict[self.dict_key(value)], new_value)
+    def decrease_value(self, value: T, new_value: T):
+        """
+        Decreases the value to new_value
         
-    def insert(self, value: T):
+        Parameters
+        ----------
+        value: T
+            Value to decrease
+        new_value: T
+            New value to assign to H[key]
+        
+        Raises
+        ------
+        RuntimeWarning
+            If new_value has a different dictionary key than the previous
+            one, i.e. dict_key(value) != dict_key(new_value)
+        RuntimeWarning
+            If new_value is smaller than value
+        """
+        
+        if self.dict_key(value) != self.dict_key(new_value):
+            message = "The new value has a different dictionary key than the previous one"
+            message += f" {self.dict_key(value)} != {self.dict_key(new_value)}"
+            message += " exiting\n"
+            warn(message, RuntimeWarning)
+            return
+
+        key = self.key_dict[self.dict_key(value)]
+        self.decrease_key(key, new_value)
+
+
+    def insert(self, value: T, to_copy=True):
         """
         Inserts a new value in the heap
         
@@ -275,16 +316,25 @@ class Binary_heap:
         ----------
         value: T
             New value to insert in the heap
+        to_copy: bool, Optional
+            If True copies the value before inserting it in the heap, Default: True
         """
         
+        if to_copy:
+            value = deepcopy(value)
         self.size += 1
-        self.H.append(inf)
+
+        try:
+            self.H[self.size-1] = inf
+        except IndexError:
+            self.H.append(inf)
+
         if self.needs_dict:
             self.key_dict[self.dict_key(value)] = self.size-1
         self.decrease_key(self.size-1, value)
         
         
-    def _test_heap_property(self, verbose: bool = True):
+    def _test_heap_property(self):
         """
         Function useful to test whether the heap satisfies the heap property
 
@@ -297,7 +347,7 @@ class Binary_heap:
             for j in (self.left(i), self.right(i)):
                 if self.is_valid_node(j) and self._order(self.H[j], self.H[i]):
                     message = f"The heap property isn't satisfied: {j} is smaller than its parent"
-                    warnings.warn(message, RuntimeWarning)
+                    warn(message, RuntimeWarning)
                     return
                 
     
