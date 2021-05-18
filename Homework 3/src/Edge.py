@@ -152,4 +152,4 @@ class Shortcut:
 
     def __repr__(self) -> str:
         """Overload of the print function"""
-        return self.decompose().__repr__()
+        return (self.decompose(), self.weight).__repr__()
