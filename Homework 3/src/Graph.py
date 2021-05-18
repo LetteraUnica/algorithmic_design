@@ -1,4 +1,4 @@
-from typing import TypeVar, Union
+from typing import Tuple, TypeVar, Union
 from warnings import warn
 
 n = TypeVar("n")
